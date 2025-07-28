@@ -1,7 +1,23 @@
 use std::{env, error::Error, fs};
 
+use emulator::Emulator;
+
+pub mod emulator;
+pub mod opcode;
+
+struct SdlContext {
+    gfx_handle: usize,
+}
+
+impl emulator::Screen for SdlContext {
+    fn update_screen(&self, display_output: &[bool]) {
+        println!("{} - {}", self.gfx_handle, display_output[0]);
+    }
+}
+
 pub struct Config {
-    pub rom_file: String,
+    rom_file: String,
+    sdl_context: SdlContext,
 }
 
 impl Config {
@@ -17,7 +33,11 @@ impl Config {
             }
         };
 
-        Ok(Config { rom_file })
+        let sdl_context = SdlContext { gfx_handle: 0 };
+        Ok(Config {
+            rom_file,
+            sdl_context,
+        })
     }
 
     pub fn run(&self) -> Result<(), Box<dyn Error>> {
@@ -29,8 +49,10 @@ impl Config {
 
         let rom = fs::read(filename)?.to_vec();
 
-        println!("ROM: {:?}", rom);
+        println!("ROM: {rom:?}");
 
+        let mut _em = Emulator::new(&rom);
+        _em.run(&self.sdl_context);
         Ok(())
     }
 }
