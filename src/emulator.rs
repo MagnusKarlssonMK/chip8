@@ -42,8 +42,6 @@ pub enum KeyEvent {
 
 /// Trait used by emulator to trigger a screen update, providing the current display
 /// bits in a vector.
-///
-/// TBD - Maybe figure out a way to support different resolutions for future extensions? Add it as inputs here, or assume that the outer module can access it somehow?
 pub trait System {
     fn update_screen(&self, display_output: &[bool]);
 
@@ -62,6 +60,7 @@ pub struct Emulator {
     delay_timer: u8,
     sound_timer: u8,
     reg_vx: [u8; 16],
+    keypad: [bool; 16],
     options: OptionalSettings,
     rng: rand::rngs::ThreadRng,
     display_updated: bool,
@@ -91,6 +90,7 @@ impl Emulator {
             delay_timer: 0,
             sound_timer: 0,
             reg_vx: [0; 16],
+            keypad: [false; 16],
             options: OptionalSettings {
                 op_shift_ignore_vy: false,
                 op_jump_w_offset_use_vx: false,
@@ -267,10 +267,14 @@ impl Emulator {
                 self.display_updated = true;
             }
             OpCode::SkipIfKeyPressed { vx } => {
-                // TBD - keys not yet implemented
+                if self.keypad[self.reg_vx[vx as usize & 0xF] as usize] {
+                    self.pc += 2;
+                }
             }
             OpCode::SkipIfKeyNotPressed { vx } => {
-                // TBD - keys not yet implemented
+                if !self.keypad[self.reg_vx[vx as usize & 0xF] as usize] {
+                    self.pc += 2;
+                }
             }
             OpCode::SetVxToDelayTimer { vx } => {
                 self.reg_vx[vx as usize] = self.delay_timer;
@@ -290,8 +294,18 @@ impl Emulator {
                 }
             }
             OpCode::GetKey { vx } => {
-                // TBD - keys not yet implemented
-                // Need to figure out how to wait for key press
+                // Simplified implementation - Accept any key currently pressed, lowest key prioritized if multiple keys pressed.
+                let mut keypressed = false;
+                for (key, v) in self.keypad.iter().enumerate() {
+                    if *v {
+                        self.reg_vx[vx as usize] = key as u8;
+                        keypressed = true;
+                        break;
+                    }
+                }
+                if !keypressed {
+                    self.pc -= 2;
+                }
             }
             OpCode::FontCharacter { vx } => {
                 // Masking the font index in VX just in case its value is too big.
