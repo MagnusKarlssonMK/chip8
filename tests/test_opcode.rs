@@ -308,8 +308,8 @@ fn test_setindex() {
 fn test_jumpwithoffset() {
     if let Some(op) = OpCode::from_bytes(&[0xB4, 0x67]) {
         match op {
-            OpCode::JumpWithOffset(val) => {
-                assert!(val == 0x467);
+            OpCode::JumpWithOffset { vx, val } => {
+                assert!(vx == 4 && val == 0x467);
             }
             _ => assert!(false),
         }
@@ -336,8 +336,8 @@ fn test_random() {
 fn test_display() {
     if let Some(op) = OpCode::from_bytes(&[0xD4, 0x67]) {
         match op {
-            OpCode::Display { vx, vy, n } => {
-                assert!(vx == 4 && vy == 6 && n == 7);
+            OpCode::Display { vx, vy, val } => {
+                assert!(vx == 4 && vy == 6 && val == 7);
             }
             _ => assert!(false),
         }

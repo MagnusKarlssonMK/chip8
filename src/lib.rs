@@ -5,13 +5,33 @@ use emulator::Emulator;
 pub mod emulator;
 pub mod opcode;
 
+#[allow(dead_code)]
 struct SdlContext {
     gfx_handle: usize,
 }
 
-impl emulator::Screen for SdlContext {
-    fn update_screen(&self, display_output: &[bool]) {
-        println!("{} - {}", self.gfx_handle, display_output[0]);
+const DISPLAY_WIDTH: u8 = 64;
+const DISPLAY_HEIGHT: u8 = 32;
+
+#[allow(dead_code)]
+impl emulator::System for SdlContext {
+    fn update_screen(&self, _display_output: &[bool]) {
+        for (i, v) in _display_output.iter().enumerate() {
+            if i % 64 == 0 {
+                println!();
+            }
+            if *v {
+                print!("X");
+            } else {
+                print!(".");
+            }
+        }
+        println!();
+        //println!("{} - {}", self.gfx_handle, display_output[0]);
+    }
+
+    fn get_key_event(&self) -> Option<emulator::KeyEvent> {
+        None
     }
 }
 
@@ -29,7 +49,7 @@ impl Config {
             None => {
                 return Err(
                     "Use file name of ROM file to run (no file extension) as first argument.",
-                )
+                );
             }
         };
 
@@ -49,9 +69,9 @@ impl Config {
 
         let rom = fs::read(filename)?.to_vec();
 
-        println!("ROM: {rom:?}");
+        //println!("ROM: {rom:?}");
 
-        let mut _em = Emulator::new(&rom);
+        let mut _em = Emulator::new(&rom, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         _em.run(&self.sdl_context);
         Ok(())
     }

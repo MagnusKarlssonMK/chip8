@@ -24,9 +24,9 @@ pub enum OpCode {
     SubVyVxToVx { vx: u8, vy: u8 },
     Shift { vx: u8, vy: u8, left_shift: bool },
     SetIndex(u16),
-    JumpWithOffset(u16),
+    JumpWithOffset { vx: u8, val: u16 },
     Random { vx: u8, val: u8 },
-    Display { vx: u8, vy: u8, n: u8 },
+    Display { vx: u8, vy: u8, val: u8 },
     SkipIfKeyPressed { vx: u8 },
     SkipIfKeyNotPressed { vx: u8 },
     SetVxToDelayTimer { vx: u8 },
@@ -96,12 +96,15 @@ impl OpCode {
                 }
             }
             0xA => Some(Self::SetIndex(((vx as u16) << 8) + bytes[1] as u16)),
-            0xB => Some(Self::JumpWithOffset(((vx as u16) << 8) + bytes[1] as u16)),
+            0xB => Some(Self::JumpWithOffset {
+                vx,
+                val: (((vx as u16) << 8) + bytes[1] as u16),
+            }),
             0xC => Some(Self::Random { vx, val: bytes[1] }),
             0xD => Some(Self::Display {
                 vx,
                 vy,
-                n: bytes[1] & 0xF,
+                val: bytes[1] & 0xF,
             }),
             0xE => match bytes[1] {
                 0x9E => Some(Self::SkipIfKeyPressed { vx }),
