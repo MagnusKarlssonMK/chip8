@@ -10,7 +10,7 @@ use std::error::Error;
 const ON_COLOR: Color = Color::RGB(255, 255, 255);
 const OFF_COLOR: Color = Color::RGB(0, 0, 0);
 
-const SCALING: u32 = 10;
+const SCALING: u32 = 20;
 
 pub struct Display {
     canvas: Canvas<Window>,
