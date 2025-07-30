@@ -3,6 +3,7 @@
 //! The main part of the CHIP-8 emulator module
 use crate::opcode::OpCode;
 use rand::Rng;
+use std::time::Duration;
 
 const MEM_SIZE: u16 = 4096;
 const ROM_START: u16 = 0x200;
@@ -43,9 +44,9 @@ pub enum KeyEvent {
 /// Trait used by emulator to trigger a screen update, providing the current display
 /// bits in a vector.
 pub trait System {
-    fn update_screen(&self, display_output: &[bool]);
+    fn update_screen(&mut self, display_output: &[bool]);
 
-    fn get_key_event(&self) -> Option<KeyEvent>;
+    fn get_key_event(&mut self) -> Option<KeyEvent>;
 }
 
 /// Contains the data for the emulator
@@ -102,24 +103,40 @@ impl Emulator {
     }
 
     /// Starts running the emulator until the program is halted.
-    pub fn run<T: System>(&mut self, screen_handle: &T) {
-        loop {
+    pub fn run<T: System>(&mut self, system_handle: &mut T) {
+        'running: loop {
+            // Empty the key events
+            while let Some(k) = system_handle.get_key_event() {
+                match k {
+                    KeyEvent::Quit => {
+                        break 'running;
+                    }
+                    KeyEvent::KeyDown(k) => {
+                        self.keypad[k as usize] = true;
+                    }
+                    KeyEvent::KeyUp(k) => {
+                        self.keypad[k as usize] = false;
+                    }
+                }
+            }
+
+            // TBD handle timers
+
+            // Process CPU op codes
+            // TBD limit number of codes per cycle
             let opcode = OpCode::from_bytes(&self.memory[self.pc as usize..]);
             self.pc += 2;
             if let Some(op) = opcode {
-                //println!("{op:?}");
                 self.execute_opcode(op);
             } else {
                 println!("Warning: Failed to decode op code");
             }
             if self.display_updated {
-                screen_handle.update_screen(&self.display_output);
+                system_handle.update_screen(&self.display_output);
                 self.display_updated = false;
             }
-            if self.pc == 552 {
-                // Temporary to kill the IBM program once done
-                break;
-            }
+
+            std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
         }
     }
 
