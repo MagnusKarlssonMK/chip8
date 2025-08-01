@@ -33,6 +33,8 @@ pub struct OptionalSettings {
     op_shift_ignore_vy: bool,
     op_jump_w_offset_use_vx: bool,
     op_store_load_mem_use_i: bool,
+    display_freq: u32,
+    cpu_cycles_per_display_update: u32,
 }
 
 pub enum KeyEvent {
@@ -96,6 +98,8 @@ impl Emulator {
                 op_shift_ignore_vy: true,
                 op_jump_w_offset_use_vx: false,
                 op_store_load_mem_use_i: false,
+                display_freq: 60,
+                cpu_cycles_per_display_update: 10,
             },
             rng: rand::rng(),
             display_updated: false,
@@ -105,21 +109,7 @@ impl Emulator {
     /// Starts running the emulator until the program is halted.
     pub fn run<T: System>(&mut self, system_handle: &mut T) {
         'running: loop {
-            // Empty the key events
-            while let Some(k) = system_handle.get_key_event() {
-                match k {
-                    KeyEvent::Quit => {
-                        break 'running;
-                    }
-                    KeyEvent::KeyDown(k) => {
-                        self.keypad[k as usize] = true;
-                    }
-                    KeyEvent::KeyUp(k) => {
-                        self.keypad[k as usize] = false;
-                    }
-                }
-            }
-
+            // Decrement timers
             if self.delay_timer > 0 {
                 self.delay_timer -= 1;
             }
@@ -128,10 +118,23 @@ impl Emulator {
                 self.sound_timer -= 1;
             }
 
-            // Process CPU op codes
-            // Assume 700 CPU cycles per second for now
-            let cpu_cycles: u32 = 700 / 60;
-            for _ in 0..cpu_cycles {
+            for _ in 0..self.options.cpu_cycles_per_display_update {
+                // Empty the key events
+                while let Some(k) = system_handle.get_key_event() {
+                    match k {
+                        KeyEvent::Quit => {
+                            break 'running;
+                        }
+                        KeyEvent::KeyDown(k) => {
+                            self.keypad[k as usize] = true;
+                        }
+                        KeyEvent::KeyUp(k) => {
+                            self.keypad[k as usize] = false;
+                        }
+                    }
+                }
+
+                // Process CPU op codes
                 let opcode = OpCode::from_bytes(&self.memory[self.pc as usize..]);
                 self.pc += 2;
                 if let Some(op) = opcode {
@@ -146,7 +149,10 @@ impl Emulator {
             }
 
             // If we want to be really picky about time, maybe consider subtracting the execution time of this loop cycle
-            std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+            std::thread::sleep(Duration::new(
+                0,
+                1_000_000_000u32 / self.options.display_freq,
+            ));
         }
     }
 
