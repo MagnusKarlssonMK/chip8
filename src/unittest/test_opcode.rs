@@ -1,4 +1,4 @@
-use chip8::opcode::*;
+use super::*;
 
 #[test]
 fn test_tooshortinput() {

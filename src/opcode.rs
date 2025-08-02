@@ -127,3 +127,7 @@ impl OpCode {
         }
     }
 }
+
+#[path = "unittest/test_opcode.rs"]
+#[cfg(test)]
+mod test_opcode;
