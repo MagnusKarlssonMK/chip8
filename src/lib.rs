@@ -1,9 +1,11 @@
 use std::{env, error::Error, fs};
 
+use chip8options::Chip8options;
 use display::Display;
 use emulator::Emulator;
 use keyboard::Keyboard;
 
+mod chip8options;
 mod display;
 pub mod emulator;
 mod keyboard;
@@ -13,9 +15,6 @@ struct Peripherals {
     display: display::Display,
     keyboard: keyboard::Keyboard,
 }
-
-const DISPLAY_WIDTH: u8 = 64;
-const DISPLAY_HEIGHT: u8 = 32;
 
 impl emulator::System for Peripherals {
     fn update_screen(&mut self, display_output: &[bool]) {
@@ -29,6 +28,7 @@ impl emulator::System for Peripherals {
 
 pub struct Config {
     rom: Vec<u8>,
+    chip8_options: Chip8options,
 }
 
 impl Config {
@@ -55,14 +55,17 @@ impl Config {
             }
         };
 
-        Ok(Config { rom })
+        // Read option configurations
+        let chip8_options = Chip8options::get_options();
+
+        Ok(Config { rom, chip8_options })
     }
 
     pub fn run(&self) -> Result<(), Box<dyn Error>> {
-        let mut emulator = Emulator::new(&self.rom, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        let mut emulator = Emulator::new(&self.rom, &self.chip8_options);
         let sdl_context = sdl2::init()?;
         let mut peripherals = Peripherals {
-            display: Display::new(&sdl_context, DISPLAY_WIDTH, DISPLAY_HEIGHT)?,
+            display: Display::new(&sdl_context, &self.chip8_options.display)?,
             keyboard: Keyboard::new(&sdl_context)?,
         };
         emulator.run(&mut peripherals);

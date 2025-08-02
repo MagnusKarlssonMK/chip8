@@ -1,0 +1,34 @@
+# Configurable values for the emulator.
+# Do not change/remove/add value names.
+
+[display]
+display_width = 64
+display_height = 32
+scaling = 20  # Multiplication factor for the size of each pixel
+color_off_rgb = [0, 0, 0]
+color_on_rgb = [255, 255, 255]
+
+[timing]
+display_frequency = 60  # Hz
+cpu_cycles_per_display_tick = 10
+
+[opcode]
+# Shift (8XY6, 8XYE)
+# false: VX will be set to the value of VY before the shift
+# true: VY will be ignored
+shift_ignore_vy = true
+
+# Jump with offset (BXNN)
+# false: PC will be set to XNN + V0
+# true: PC will be set to XNN + VX
+jump_w_offset_use_vx = false
+
+# Store/Load Memory (FX55, FX65)
+# false: The operation will be performed without changing the value of the I-register
+# true: The value of the I-register will be incremented while performing the operation
+store_load_mem_use_i = false
+
+[memory]
+mem_size = 4096
+rom_start = 0x200
+font_start = 0x50

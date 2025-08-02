@@ -1,13 +1,10 @@
 //! # Emulator
 //!
 //! The main part of the CHIP-8 emulator module
+use crate::chip8options::Chip8options;
 use crate::opcode::OpCode;
 use rand::Rng;
 use std::time::Duration;
-
-const MEM_SIZE: u16 = 4096;
-const ROM_START: u16 = 0x200;
-const FONT_START: u16 = 0x50;
 
 const FONTS: [u8; 16 * 5] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -28,15 +25,6 @@ const FONTS: [u8; 16 * 5] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-/// Data type for configuring optional settings for the emulator.
-pub struct OptionalSettings {
-    op_shift_ignore_vy: bool,
-    op_jump_w_offset_use_vx: bool,
-    op_store_load_mem_use_i: bool,
-    display_freq: u32,
-    cpu_cycles_per_display_update: u32,
-}
-
 pub enum KeyEvent {
     KeyDown(u8),
     KeyUp(u8),
@@ -53,7 +41,7 @@ pub trait System {
 
 /// Contains the data for the emulator
 pub struct Emulator {
-    memory: [u8; MEM_SIZE as usize],
+    memory: Vec<u8>,
     display_output: Vec<bool>,
     display_width: u8,
     display_height: u8,
@@ -64,29 +52,31 @@ pub struct Emulator {
     sound_timer: u8,
     reg_vx: [u8; 16],
     keypad: [bool; 16],
-    options: OptionalSettings,
+    options: Chip8options,
     rng: rand::rngs::ThreadRng,
     display_updated: bool,
 }
 
 impl Emulator {
-    /// Creates a new Emulator instance. Takes the rom vector as input.
-    ///
-    /// TBD - Add input for optional settings.
-    pub fn new(rom: &[u8], display_width: u8, display_height: u8) -> Self {
-        let mut memory = [0; MEM_SIZE as usize];
+    /// Creates a new Emulator instance. Takes the rom vector as input and the configuration options.
+    pub fn new(rom: &[u8], options: &Chip8options) -> Self {
+        let mut memory = vec![0; options.memory.mem_size as usize];
         for (i, n) in FONTS.iter().enumerate() {
-            memory[i + FONT_START as usize] = *n;
+            memory[i + options.memory.font_start as usize] = *n;
         }
         for (i, n) in rom.iter().enumerate() {
-            memory[i + ROM_START as usize] = *n;
+            memory[i + options.memory.rom_start as usize] = *n;
         }
 
         Self {
             memory,
-            display_output: vec![false; display_width as usize * display_height as usize],
-            display_width,
-            display_height,
+            display_output: vec![
+                false;
+                options.display.display_width as usize
+                    * options.display.display_height as usize
+            ],
+            display_width: options.display.display_width as u8,
+            display_height: options.display.display_width as u8,
             pc: 0x200,
             reg_i: 0,
             stack: Vec::new(),
@@ -94,13 +84,7 @@ impl Emulator {
             sound_timer: 0,
             reg_vx: [0; 16],
             keypad: [false; 16],
-            options: OptionalSettings {
-                op_shift_ignore_vy: true,
-                op_jump_w_offset_use_vx: false,
-                op_store_load_mem_use_i: false,
-                display_freq: 60,
-                cpu_cycles_per_display_update: 10,
-            },
+            options: *options,
             rng: rand::rng(),
             display_updated: false,
         }
@@ -118,7 +102,7 @@ impl Emulator {
                 self.sound_timer -= 1;
             }
 
-            for _ in 0..self.options.cpu_cycles_per_display_update {
+            for _ in 0..self.options.timing.cpu_cycles_per_display_tick {
                 // Empty the key events
                 while let Some(k) = system_handle.get_key_event() {
                     match k {
@@ -140,7 +124,7 @@ impl Emulator {
                 if let Some(op) = opcode {
                     self.execute_opcode(op);
                 } else {
-                    println!("Warning: Failed to decode op code");
+                    eprintln!("Warning: Failed to decode op code");
                 }
             }
             if self.display_updated {
@@ -151,7 +135,7 @@ impl Emulator {
             // If we want to be really picky about time, maybe consider subtracting the execution time of this loop cycle
             std::thread::sleep(Duration::new(
                 0,
-                1_000_000_000u32 / self.options.display_freq,
+                1_000_000_000u32 / self.options.timing.display_frequency,
             ));
         }
     }
@@ -176,7 +160,7 @@ impl Emulator {
                 if let Some(r) = self.stack.pop() {
                     self.pc = r;
                 } else {
-                    println!("Warning: Return called with empty stack.")
+                    eprintln!("Warning: Return called with empty stack.")
                 }
             }
             OpCode::Set { vx, val } => {
@@ -245,7 +229,7 @@ impl Emulator {
                 self.reg_vx[vx as usize] = new_vx;
             }
             OpCode::Shift { vx, vy, left_shift } => {
-                if !self.options.op_shift_ignore_vy {
+                if !self.options.opcode.shift_ignore_vy {
                     self.reg_vx[vx as usize] = self.reg_vx[vy as usize];
                 }
                 if left_shift {
@@ -268,8 +252,8 @@ impl Emulator {
                 self.reg_i = val;
             }
             OpCode::JumpWithOffset { vx, val } => {
-                self.pc = if self.options.op_jump_w_offset_use_vx {
-                    (val & 0xFF) + self.reg_vx[vx as usize] as u16
+                self.pc = if self.options.opcode.jump_w_offset_use_vx {
+                    val + self.reg_vx[vx as usize] as u16
                 } else {
                     val + self.reg_vx[0] as u16
                 };
@@ -320,9 +304,9 @@ impl Emulator {
             OpCode::AddToIndex { vx } => {
                 self.reg_i += self.reg_vx[vx as usize] as u16;
                 // Overflow handling
-                if self.reg_i >= MEM_SIZE {
+                if self.reg_i >= self.options.memory.mem_size {
                     self.reg_vx[0xF] = 1;
-                    self.reg_i %= MEM_SIZE;
+                    self.reg_i %= self.options.memory.mem_size;
                 }
             }
             OpCode::GetKey { vx } => {
@@ -341,7 +325,8 @@ impl Emulator {
             }
             OpCode::FontCharacter { vx } => {
                 // Masking the font index in VX just in case its value is too big.
-                self.reg_i = FONT_START + (5 * (self.reg_vx[vx as usize] & 0xF) as u16);
+                self.reg_i =
+                    self.options.memory.font_start + (5 * (self.reg_vx[vx as usize] & 0xF) as u16);
             }
             OpCode::BinaryCodedDecimalConversion { vx } => {
                 self.memory[self.reg_i as usize] = self.reg_vx[vx as usize] / 100;
@@ -352,7 +337,7 @@ impl Emulator {
                 for x in 0..vx + 1 {
                     self.memory[self.reg_i as usize + x as usize] = self.reg_vx[x as usize];
                 }
-                if self.options.op_store_load_mem_use_i {
+                if self.options.opcode.store_load_mem_use_i {
                     self.reg_i += vx as u16 + 1;
                 }
             }
@@ -360,7 +345,7 @@ impl Emulator {
                 for x in 0..vx + 1 {
                     self.reg_vx[x as usize] = self.memory[self.reg_i as usize + x as usize];
                 }
-                if self.options.op_store_load_mem_use_i {
+                if self.options.opcode.store_load_mem_use_i {
                     self.reg_i += vx as u16 + 1;
                 }
             }
@@ -375,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_jump() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         let jump_pos = 0x250;
         test_emulator.execute_opcode(OpCode::Jump(jump_pos));
         assert!(test_emulator.pc == jump_pos);
@@ -383,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_call_return() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         let start_pos = test_emulator.pc;
         let call_pos_1 = 0x250;
         let call_pos_2 = 0x260;
@@ -411,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_set_add() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.execute_opcode(OpCode::Set { vx: 1, val: 3 });
         test_emulator.execute_opcode(OpCode::Set { vx: 2, val: 8 });
         assert!(test_emulator.reg_vx[1] == 3 && test_emulator.reg_vx[2] == 8);
@@ -425,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_skip_if_vx() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         let mut prev_pos = test_emulator.pc;
         test_emulator.execute_opcode(OpCode::SkipIfVxEq { vx: 1, val: 1 });
         assert!(test_emulator.pc == prev_pos);
@@ -440,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_set_vxtovy() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[3] = 7;
         test_emulator.execute_opcode(OpCode::SetVxToVy { vx: 2, vy: 3 });
         assert!(test_emulator.reg_vx[2] == 7 && test_emulator.reg_vx[3] == 7);
@@ -448,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_arithmetic_logical() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[2] = 4;
         test_emulator.reg_vx[3] = 1;
         test_emulator.execute_opcode(OpCode::SetVxToVy { vx: 1, vy: 2 });
@@ -504,8 +489,8 @@ mod tests {
 
     #[test]
     fn test_shift() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
-        test_emulator.options.op_shift_ignore_vy = false;
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
+        test_emulator.options.opcode.shift_ignore_vy = false;
         test_emulator.reg_vx[1] = 7;
         test_emulator.reg_vx[2] = 2;
         test_emulator.execute_opcode(OpCode::Shift {
@@ -553,7 +538,7 @@ mod tests {
                 && test_emulator.reg_vx[0xF] == 1
         );
 
-        test_emulator.options.op_shift_ignore_vy = true;
+        test_emulator.options.opcode.shift_ignore_vy = true;
         test_emulator.reg_vx[1] = 6;
         test_emulator.reg_vx[2] = 2;
         test_emulator.execute_opcode(OpCode::Shift {
@@ -601,28 +586,28 @@ mod tests {
 
     #[test]
     fn test_setindex() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.execute_opcode(OpCode::SetIndex(0x350));
         assert!(test_emulator.reg_i == 0x350);
     }
 
     #[test]
     fn test_jumpwithoffset() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
-        test_emulator.options.op_jump_w_offset_use_vx = false;
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
+        test_emulator.options.opcode.jump_w_offset_use_vx = false;
         test_emulator.reg_vx[0] = 6;
         test_emulator.reg_vx[1] = 3;
         test_emulator.execute_opcode(OpCode::JumpWithOffset { vx: 1, val: 0x152 });
         assert!(test_emulator.pc == 0x158);
 
-        test_emulator.options.op_jump_w_offset_use_vx = true;
+        test_emulator.options.opcode.jump_w_offset_use_vx = true;
         test_emulator.execute_opcode(OpCode::JumpWithOffset { vx: 1, val: 0x152 });
-        assert!(test_emulator.pc == 0x55);
+        assert!(test_emulator.pc == 0x155);
     }
 
     #[test]
     fn test_skipifkey() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[1] = 3;
         let mut test_pc = test_emulator.pc;
         test_emulator.execute_opcode(OpCode::SkipIfKeyPressed { vx: 1 });
@@ -640,7 +625,7 @@ mod tests {
 
     #[test]
     fn test_timers() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[1] = 3;
         test_emulator.execute_opcode(OpCode::SetDelayTimerToVx { vx: 1 });
         assert!(test_emulator.delay_timer == 3);
@@ -652,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_addtoindex() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[1] = 3;
         test_emulator.reg_i = 8;
         test_emulator.execute_opcode(OpCode::AddToIndex { vx: 1 });
@@ -664,15 +649,15 @@ mod tests {
 
     #[test]
     fn test_fontchar() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[1] = 3;
         test_emulator.execute_opcode(OpCode::FontCharacter { vx: 1 });
-        assert!(test_emulator.reg_i == FONT_START + (5 * 3));
+        assert!(test_emulator.reg_i == test_emulator.options.memory.font_start + (5 * 3));
     }
 
     #[test]
     fn test_bincodeddecconv() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
         test_emulator.reg_vx[1] = 0x9C;
         test_emulator.reg_i = 0x300;
         test_emulator.execute_opcode(OpCode::BinaryCodedDecimalConversion { vx: 1 });
@@ -683,8 +668,8 @@ mod tests {
 
     #[test]
     fn test_storememory() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
-        test_emulator.options.op_store_load_mem_use_i = false;
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
+        test_emulator.options.opcode.store_load_mem_use_i = false;
         test_emulator.reg_vx[0] = 11;
         test_emulator.reg_vx[1] = 13;
         test_emulator.reg_vx[2] = 15;
@@ -695,7 +680,7 @@ mod tests {
         assert!(test_emulator.memory[0x302] == 15);
         assert!(test_emulator.reg_i == 0x300);
 
-        test_emulator.options.op_store_load_mem_use_i = true;
+        test_emulator.options.opcode.store_load_mem_use_i = true;
         test_emulator.execute_opcode(OpCode::StoreMemory { vx: 2 });
         assert!(test_emulator.memory[0x300] == 11);
         assert!(test_emulator.memory[0x301] == 13);
@@ -705,8 +690,8 @@ mod tests {
 
     #[test]
     fn test_loadmemory() {
-        let mut test_emulator = Emulator::new(&[0], 64, 32);
-        test_emulator.options.op_store_load_mem_use_i = false;
+        let mut test_emulator = Emulator::new(&[0], &Chip8options::default());
+        test_emulator.options.opcode.store_load_mem_use_i = false;
         test_emulator.reg_i = 0x300;
         test_emulator.memory[0x300] = 11;
         test_emulator.memory[0x301] = 13;
@@ -717,7 +702,7 @@ mod tests {
         assert!(test_emulator.reg_vx[2] == 15);
         assert!(test_emulator.reg_i == 0x300);
 
-        test_emulator.options.op_store_load_mem_use_i = true;
+        test_emulator.options.opcode.store_load_mem_use_i = true;
         test_emulator.execute_opcode(OpCode::StoreMemory { vx: 2 });
         assert!(test_emulator.reg_vx[0] == 11);
         assert!(test_emulator.reg_vx[1] == 13);
