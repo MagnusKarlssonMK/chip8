@@ -76,7 +76,7 @@ impl Emulator {
                     * options.display.display_height as usize
             ],
             display_width: options.display.display_width as u8,
-            display_height: options.display.display_width as u8,
+            display_height: options.display.display_height as u8,
             pc: 0x200,
             reg_i: 0,
             stack: Vec::new(),
@@ -202,50 +202,51 @@ impl Emulator {
                 self.reg_vx[vx as usize] ^= self.reg_vx[vy as usize];
             }
             OpCode::AddVyToVx { vx, vy } => {
-                let new_vx = self.reg_vx[vx as usize].wrapping_add(self.reg_vx[vy as usize]);
-                self.reg_vx[0xF] = if new_vx < self.reg_vx[vx as usize] {
+                let old_vx = self.reg_vx[vx as usize];
+                self.reg_vx[vx as usize] = old_vx.wrapping_add(self.reg_vx[vy as usize]);
+                self.reg_vx[0xF] = if self.reg_vx[vx as usize] < old_vx {
                     1
                 } else {
                     0
                 };
-                self.reg_vx[vx as usize] = new_vx;
             }
             OpCode::SubVxVyToVx { vx, vy } => {
-                let new_vx = self.reg_vx[vx as usize].wrapping_sub(self.reg_vx[vy as usize]);
-                self.reg_vx[0xF] = if new_vx > self.reg_vx[vx as usize] {
-                    0
-                } else {
+                let old_vx = self.reg_vx[vx as usize];
+                self.reg_vx[vx as usize] = old_vx.wrapping_sub(self.reg_vx[vy as usize]);
+                self.reg_vx[0xF] = if old_vx >= self.reg_vx[vy as usize] {
                     1
+                } else {
+                    0
                 };
-                self.reg_vx[vx as usize] = new_vx;
             }
             OpCode::SubVyVxToVx { vx, vy } => {
-                let new_vx = self.reg_vx[vy as usize].wrapping_sub(self.reg_vx[vx as usize]);
-                self.reg_vx[0xF] = if new_vx > self.reg_vx[vy as usize] {
-                    0
-                } else {
+                let old_vx = self.reg_vx[vx as usize];
+                self.reg_vx[vx as usize] = self.reg_vx[vy as usize].wrapping_sub(old_vx);
+                self.reg_vx[0xF] = if self.reg_vx[vy as usize] >= old_vx {
                     1
+                } else {
+                    0
                 };
-                self.reg_vx[vx as usize] = new_vx;
             }
             OpCode::Shift { vx, vy, left_shift } => {
                 if !self.options.opcode.shift_ignore_vy {
                     self.reg_vx[vx as usize] = self.reg_vx[vy as usize];
                 }
+                let old_vx = self.reg_vx[vx as usize];
                 if left_shift {
-                    self.reg_vx[0xF] = if self.reg_vx[vx as usize] & 0x80 == 0 {
-                        0
-                    } else {
-                        1
-                    };
                     self.reg_vx[vx as usize] = (self.reg_vx[vx as usize] & 0x7F) << 1;
-                } else {
-                    self.reg_vx[0xF] = if self.reg_vx[vx as usize] & 0x1 == 0 {
+                    self.reg_vx[0xF] = if old_vx & 0x80 == 0 {
                         0
                     } else {
                         1
                     };
+                } else {
                     self.reg_vx[vx as usize] >>= 1;
+                    self.reg_vx[0xF] = if old_vx & 0x1 == 0 {
+                        0
+                    } else {
+                        1
+                    };
                 }
             }
             OpCode::SetIndex(val) => {
@@ -305,8 +306,8 @@ impl Emulator {
                 self.reg_i += self.reg_vx[vx as usize] as u16;
                 // Overflow handling
                 if self.reg_i >= self.options.memory.mem_size {
-                    self.reg_vx[0xF] = 1;
                     self.reg_i %= self.options.memory.mem_size;
+                    self.reg_vx[0xF] = 1;
                 }
             }
             OpCode::GetKey { vx } => {
