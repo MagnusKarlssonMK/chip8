@@ -102,7 +102,8 @@ impl Emulator {
                 self.sound_timer -= 1;
             }
 
-            for _ in 0..self.options.timing.cpu_cycles_per_display_tick {
+            let mut wait_for_display_interrupt = false;
+            for cpu_cycle in 0..self.options.timing.cpu_cycles_per_display_tick {
                 // Empty the key events
                 while let Some(k) = system_handle.get_key_event() {
                     match k {
@@ -122,6 +123,17 @@ impl Emulator {
                 let opcode = OpCode::from_bytes(&self.memory[self.pc as usize..]);
                 self.pc += 2;
                 if let Some(op) = opcode {
+                    match op {
+                        OpCode::Display { .. } => {
+                            if cpu_cycle > 0 && wait_for_display_interrupt {
+                                self.pc -= 2;
+                                break;
+                            }
+                        }
+                        _ => {
+                            wait_for_display_interrupt = true;
+                        }
+                    }
                     self.execute_opcode(op);
                 } else {
                     eprintln!("Warning: Failed to decode op code");
@@ -191,15 +203,19 @@ impl Emulator {
             }
             OpCode::SetVxToVy { vx, vy } => {
                 self.reg_vx[vx as usize] = self.reg_vx[vy as usize];
+                self.reg_vx[0xF] = 0;
             }
             OpCode::BinaryOr { vx, vy } => {
                 self.reg_vx[vx as usize] |= self.reg_vx[vy as usize];
+                self.reg_vx[0xF] = 0;
             }
             OpCode::BinaryAnd { vx, vy } => {
                 self.reg_vx[vx as usize] &= self.reg_vx[vy as usize];
+                self.reg_vx[0xF] = 0;
             }
             OpCode::LogicalXor { vx, vy } => {
                 self.reg_vx[vx as usize] ^= self.reg_vx[vy as usize];
+                self.reg_vx[0xF] = 0;
             }
             OpCode::AddVyToVx { vx, vy } => {
                 let old_vx = self.reg_vx[vx as usize];
@@ -235,18 +251,10 @@ impl Emulator {
                 let old_vx = self.reg_vx[vx as usize];
                 if left_shift {
                     self.reg_vx[vx as usize] = (self.reg_vx[vx as usize] & 0x7F) << 1;
-                    self.reg_vx[0xF] = if old_vx & 0x80 == 0 {
-                        0
-                    } else {
-                        1
-                    };
+                    self.reg_vx[0xF] = old_vx >> 7;
                 } else {
                     self.reg_vx[vx as usize] >>= 1;
-                    self.reg_vx[0xF] = if old_vx & 0x1 == 0 {
-                        0
-                    } else {
-                        1
-                    };
+                    self.reg_vx[0xF] = old_vx & 0x1;
                 }
             }
             OpCode::SetIndex(val) => {

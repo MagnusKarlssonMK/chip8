@@ -10,7 +10,7 @@ color_on_rgb = [255, 255, 255]
 
 [timing]
 display_frequency = 60  # Hz
-cpu_cycles_per_display_tick = 10
+cpu_cycles_per_display_tick = 700
 
 [opcode]
 # Shift (8XY6, 8XYE)
@@ -26,7 +26,7 @@ jump_w_offset_use_vx = false
 # Store/Load Memory (FX55, FX65)
 # false: The operation will be performed without changing the value of the I-register
 # true: The value of the I-register will be incremented while performing the operation
-store_load_mem_use_i = false
+store_load_mem_use_i = true
 
 [memory]
 mem_size = 4096

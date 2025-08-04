@@ -239,12 +239,18 @@ fn test_jumpwithoffset() {
     test_emulator.options.opcode.jump_w_offset_use_vx = false;
     test_emulator.reg_vx[0] = 6;
     test_emulator.reg_vx[1] = 3;
+    test_emulator.reg_vx[14] = 2;
     test_emulator.execute_opcode(OpCode::JumpWithOffset { vx: 1, val: 0x152 });
     assert!(test_emulator.pc == 0x158);
 
     test_emulator.options.opcode.jump_w_offset_use_vx = true;
     test_emulator.execute_opcode(OpCode::JumpWithOffset { vx: 1, val: 0x152 });
     assert!(test_emulator.pc == 0x155);
+    test_emulator.execute_opcode(OpCode::JumpWithOffset {
+        vx: 0xE,
+        val: 0xE52,
+    });
+    assert!(test_emulator.pc == 0xE54);
 }
 
 #[test]
