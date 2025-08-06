@@ -12,4 +12,4 @@ TODO list
 
 * Add trait for handling sound peripheral, even if not actually implementing sound.
 
-* Add support for extra key to restart the ROM.
+* ~~Add support for extra key to restart the ROM.~~Done

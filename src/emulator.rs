@@ -29,6 +29,7 @@ pub enum KeyEvent {
     KeyDown(u8),
     KeyUp(u8),
     Quit,
+    Restart,
 }
 
 /// Trait used by emulator to trigger a screen update, providing the current display
@@ -41,6 +42,7 @@ pub trait System {
 
 /// Contains the data for the emulator
 pub struct Emulator {
+    rom: Vec<u8>,
     memory: Vec<u8>,
     display_output: Vec<bool>,
     display_width: u8,
@@ -69,6 +71,7 @@ impl Emulator {
         }
 
         Self {
+            rom: rom.to_vec(),
             memory,
             display_output: vec![
                 false;
@@ -77,7 +80,7 @@ impl Emulator {
             ],
             display_width: options.display.display_width as u8,
             display_height: options.display.display_height as u8,
-            pc: 0x200,
+            pc: options.memory.rom_start,
             reg_i: 0,
             stack: Vec::new(),
             delay_timer: 0,
@@ -87,6 +90,31 @@ impl Emulator {
             options: *options,
             rng: rand::rng(),
             display_updated: false,
+        }
+    }
+
+    /// Restarts the emulator by resetting the memory and loading the ROM from scratch, resetting all registers etc.
+    fn reset(&mut self) {
+        for i in self.memory.iter_mut() {
+            *i = 0;
+        }
+        for (i, n) in FONTS.iter().enumerate() {
+            self.memory[i + self.options.memory.font_start as usize] = *n;
+        }
+        for (i, n) in self.rom.iter().enumerate() {
+            self.memory[i + self.options.memory.rom_start as usize] = *n;
+        }
+        self.pc = self.options.memory.rom_start;
+        self.reg_i = 0;
+        self.stack.clear();
+        self.delay_timer = 0;
+        self.sound_timer = 0;
+        for vx in self.reg_vx.iter_mut() {
+            *vx = 0;
+        }
+        // Clear the display output too just in case the program doesn't start with ClearScreen
+        for d in self.display_output.iter_mut() {
+            *d = false;
         }
     }
 
@@ -109,6 +137,11 @@ impl Emulator {
                     match k {
                         KeyEvent::Quit => {
                             break 'running;
+                        }
+                        KeyEvent::Restart => {
+                            self.reset();
+                            // TBD - Maybe trigger sound off
+                            break; // Save remaining events until next cycle
                         }
                         KeyEvent::KeyDown(k) => {
                             self.keypad[k as usize] = true;

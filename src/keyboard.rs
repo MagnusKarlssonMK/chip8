@@ -1,6 +1,16 @@
 //! # Keyboard
 //!
 //! Contains the keyboard module for CHIP-8.
+//! Keys are mapped according to the original COSMAC VIP keypad:
+//!
+//! 1 2 3 C        1 2 3 4
+//! 4 5 6 D   =>   q w e r
+//! 7 8 9 E        a s d f
+//! A 0 B F        z x c v
+//!
+//! Additional keys are:
+//! ESC: To exit the program.
+//! F5:  To restart the program.
 
 use crate::emulator::KeyEvent;
 use sdl2::{EventPump, Sdl, event::Event, keyboard::Keycode};
@@ -48,6 +58,7 @@ impl Keyboard {
     pub fn get_chip8_key_events(&mut self) -> Option<KeyEvent> {
         for event in self.event_pump.poll_iter() {
             match event {
+                // Events for exiting program
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::Escape),
@@ -55,6 +66,14 @@ impl Keyboard {
                 } => {
                     return Some(KeyEvent::Quit);
                 }
+                // Events for restarting program
+                Event::KeyDown {
+                    keycode: Some(Keycode::F5),
+                    ..
+                } => {
+                    return Some(KeyEvent::Restart);
+                }
+                // Events mapping to regular keys
                 Event::KeyDown {
                     keycode: Some(key), ..
                 } => {
