@@ -1,8 +1,9 @@
-use chip8::Config;
-use std::{env, process};
+use chip8::{Args, Config};
+use clap::Parser;
+use std::process;
 
 fn main() {
-    let config = Config::build(env::args()).unwrap_or_else(|err| {
+    let config = Config::build(Args::parse()).unwrap_or_else(|err| {
         eprintln!("Argument error: {err}");
         process::exit(1);
     });

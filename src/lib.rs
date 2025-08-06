@@ -1,4 +1,5 @@
-use std::{env, error::Error, fs};
+use clap::Parser;
+use std::{error::Error, fs, path::PathBuf};
 
 use chip8options::Chip8options;
 use display::Display;
@@ -7,9 +8,9 @@ use keyboard::Keyboard;
 
 mod chip8options;
 mod display;
-pub mod emulator;
+mod emulator;
 mod keyboard;
-pub mod opcode;
+mod opcode;
 
 struct Peripherals {
     display: display::Display,
@@ -26,43 +27,38 @@ impl emulator::System for Peripherals {
     }
 }
 
+/// CHIP-8 emulator program
+#[derive(Parser, Debug)]
+#[command(version, long_about = None)]
+pub struct Args {
+    /// ROM file name
+    #[arg(name = "FILE")]
+    rom_file: PathBuf,
+}
+
 pub struct Config {
-    rom: Vec<u8>,
+    rom_file: PathBuf,
     chip8_options: Chip8options,
 }
 
 impl Config {
-    pub fn build(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
-        args.next();
-
-        let rom_file = match args.next() {
-            Some(arg) => arg,
-            None => {
-                return Err(
-                    "Use file name of ROM file to run (no file extension) as first argument.",
-                );
-            }
-        };
-
-        // Read input file
-        let cwd = env::current_dir().unwrap();
-        let filename = cwd.join("rom_files").join(format!("{}.ch8", &rom_file));
-
-        let rom = match fs::read(filename) {
-            Ok(f) => f.to_vec(),
-            Err(_) => {
-                return Err("File not found");
-            }
-        };
-
+    /// Builds the CHIP-8 configuration based on the input arguments.
+    pub fn build(args: Args) -> Result<Config, &'static str> {
         // Read option configurations
         let chip8_options = Chip8options::get_options();
 
-        Ok(Config { rom, chip8_options })
+        Ok(Config {
+            rom_file: args.rom_file,
+            chip8_options,
+        })
     }
 
+    /// Starts running the emulator.
     pub fn run(&self) -> Result<(), Box<dyn Error>> {
-        let mut emulator = Emulator::new(&self.rom, &self.chip8_options);
+        // Read ROM file
+        let rom = fs::read(&self.rom_file)?.to_vec();
+
+        let mut emulator = Emulator::new(&rom, &self.chip8_options);
         let sdl_context = sdl2::init()?;
         let mut peripherals = Peripherals {
             display: Display::new(&sdl_context, &self.chip8_options.display)?,

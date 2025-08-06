@@ -4,8 +4,9 @@ TODO list
 
 * ~~Add things like resolution, scaling, colors, memory size, etc. in configuration instead of hardcoding it.~~Done
 
-* Improve argument handling and how to run ROMs. Consider a file selection program, perhaps a default path to ROM folder in the configuration file.
-Consider what ROMs to keep in the repo.
+* ~~Improve argument handling and how to run ROMs. Consider a file selection program, perhaps a default path to ROM folder in the configuration file.~~Done
+
+* Consider what ROMs to keep in the repo.
 
 * ~~Restructure files / modules, try to have all unit tests in separate files to reduce clutter in the main program files.~~Done
 
