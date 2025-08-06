@@ -32,12 +32,16 @@ pub enum KeyEvent {
     Restart,
 }
 
-/// Trait used by emulator to trigger a screen update, providing the current display
-/// bits in a vector.
+/// Traits to be supported by the surrounding CHIP8 system
 pub trait System {
+    /// Triggers a screen update, providing the current display output in a vector
     fn update_screen(&mut self, display_output: &[bool]);
 
+    /// Polls for queued up key event
     fn get_key_event(&mut self) -> Option<KeyEvent>;
+
+    /// Updates the beep sound state ON/OFF.
+    fn set_sound_state(&mut self, _sound_on: bool) {}
 }
 
 /// Contains the data for the emulator
@@ -57,6 +61,7 @@ pub struct Emulator {
     options: Chip8options,
     rng: rand::rngs::ThreadRng,
     display_updated: bool,
+    sound_playing: bool,
 }
 
 impl Emulator {
@@ -90,6 +95,7 @@ impl Emulator {
             options: *options,
             rng: rand::rng(),
             display_updated: false,
+            sound_playing: false,
         }
     }
 
@@ -109,6 +115,7 @@ impl Emulator {
         self.stack.clear();
         self.delay_timer = 0;
         self.sound_timer = 0;
+        self.sound_playing = false;
         for vx in self.reg_vx.iter_mut() {
             *vx = 0;
         }
@@ -126,8 +133,18 @@ impl Emulator {
                 self.delay_timer -= 1;
             }
             if self.sound_timer > 0 {
-                // TBD - no actual sound (or representation of sound) yet
                 self.sound_timer -= 1;
+            }
+            // Note: The sound timer on a COSMAC VIP would not respond to a value of 1.
+            // I.e., if the timer had been set to 1 and now decremented to 0, don't trigger the sound on.
+            if self.sound_timer > 0 {
+                if !self.sound_playing {
+                    system_handle.set_sound_state(true);
+                    self.sound_playing = true;
+                }
+            } else if self.sound_playing {
+                system_handle.set_sound_state(false);
+                self.sound_playing = false;
             }
 
             let mut wait_for_display_interrupt = false;
@@ -139,8 +156,10 @@ impl Emulator {
                             break 'running;
                         }
                         KeyEvent::Restart => {
+                            if self.sound_playing {
+                                system_handle.set_sound_state(false);
+                            }
                             self.reset();
-                            // TBD - Maybe trigger sound off
                             break; // Save remaining events until next cycle
                         }
                         KeyEvent::KeyDown(k) => {

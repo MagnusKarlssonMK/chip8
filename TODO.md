@@ -10,6 +10,6 @@ TODO list
 
 * ~~Restructure files / modules, try to have all unit tests in separate files to reduce clutter in the main program files.~~Done
 
-* Add trait for handling sound peripheral, even if not actually implementing sound.
+* ~~Add trait for handling sound peripheral, even if not actually implementing sound.~~Done
 
 * ~~Add support for extra key to restart the ROM.~~Done
