@@ -5,38 +5,71 @@
 /// Enum to represent all possible CHIP-8 OP codes
 #[derive(Debug)]
 pub enum OpCode {
+    /// 00E0
     ClearScreen,
+    /// 00EE
     Return,
+    /// 1NNN
     Jump(u16),
+    /// 2NNN
     Call(u16),
+    /// 6XNN
     Set { vx: u8, val: u8 },
+    /// 7XNN
     Add { vx: u8, val: u8 },
+    /// 3XNN
     SkipIfVxEq { vx: u8, val: u8 },
+    /// 4XNN
     SkipIfVxNeq { vx: u8, val: u8 },
+    /// 5XY0
     SkipIfVxEqVy { vx: u8, vy: u8 },
+    /// 9XY0
     SkipIfVxNeqVy { vx: u8, vy: u8 },
+    /// 8XY0
     SetVxToVy { vx: u8, vy: u8 },
+    /// 8XY1
     BinaryOr { vx: u8, vy: u8 },
+    /// 8XY2
     BinaryAnd { vx: u8, vy: u8 },
+    /// 8XY3
     LogicalXor { vx: u8, vy: u8 },
+    /// 8XY4
     AddVyToVx { vx: u8, vy: u8 },
+    /// 8XY5
     SubVxVyToVx { vx: u8, vy: u8 },
+    /// 8XY7
     SubVyVxToVx { vx: u8, vy: u8 },
+    /// 8XY6 (right), 8XYE (left)
     Shift { vx: u8, vy: u8, left_shift: bool },
+    /// ANNN
     SetIndex(u16),
+    /// BNNN (Note: val contains all three digits in NNN, vx is equal to the first N and only used if quirk is activated)
     JumpWithOffset { vx: u8, val: u16 },
+    /// CXNN
     Random { vx: u8, val: u8 },
+    /// DXYN
     Display { vx: u8, vy: u8, val: u8 },
+    /// EX9E
     SkipIfKeyPressed { vx: u8 },
+    /// EXA1
     SkipIfKeyNotPressed { vx: u8 },
+    /// FX07
     SetVxToDelayTimer { vx: u8 },
+    /// FX15
     SetDelayTimerToVx { vx: u8 },
+    /// FX18
     SetSoundTimerToVx { vx: u8 },
+    /// FX1E
     AddToIndex { vx: u8 },
+    /// FX0A
     GetKey { vx: u8 },
+    /// FX29
     FontCharacter { vx: u8 },
+    /// FX33
     BinaryCodedDecimalConversion { vx: u8 },
+    /// FX55
     StoreMemory { vx: u8 },
+    /// FX65
     LoadMemory { vx: u8 },
 }
 
